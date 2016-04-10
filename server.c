@@ -15,15 +15,39 @@
 
 int main(int argc , char *argv[])
 {
-    int  client_sock , read_size,server_socket_desc;
-    struct sockaddr_in client;
-    char client_message[500];
-    char filerequested[200];
-    char extensionoffile[10];
-    char htmlext[]=".html";
 
-    client_sock = waittoconnect(client,&server_socket_desc);
-    if (client_sock < 0)
+
+    int read_size,server_socket_desc;
+    struct sockaddr_in client;
+    char client_message[500],filerequested[200],extensionoffile[10];
+    char htmlext[]=".html";
+    int size_sockaddrin;
+    struct sockaddr_in server;
+
+    server_socket_desc=socket(AF_INET,SOCK_STREAM,0);
+    if(server_socket_desc==-1){
+        return -1;//server socket create error
+    }
+
+    server.sin_family = AF_INET;
+    server.sin_addr.s_addr = INADDR_ANY;
+    server.sin_port = htons( 8889 );
+
+    int bindval=bind(server_socket_desc,(struct sockaddr *)&server , sizeof(server));
+    if(bindval<0){
+        return -2;//bind fails
+    }
+
+
+    listen(server_socket_desc , 3);
+    size_sockaddrin = sizeof(struct sockaddr_in);
+    while (1){
+    int cleint_sock=accept(server_socket_desc, (struct sockaddr *)&client, (socklen_t*)&size_sockaddrin);
+    if(cleint_sock<0){
+        return -3;//accept fails
+    }
+
+    if (cleint_sock < 0)
     {
         perror("accept failed");
         return 1;
@@ -31,45 +55,52 @@ int main(int argc , char *argv[])
     puts("Connection accepted");
 
     //Receive a message from client
-    if( (read_size = recv(client_sock , client_message , 750 , 0)) > 0 )
-    {
+    if( (read_size = recv(cleint_sock , client_message , 750 , 0)) > 0 ) {
         //Send the message back to client
-        printf("readed %d\n",read_size);//Get the size of header
+        printf("readed %d\n", read_size);//Get the size of header
         puts(client_message);//Print header
 
-        filerequested[0]=NULL;
-        extensionoffile[0]=NULL;
+        filerequested[0] = NULL;
+        extensionoffile[0] = NULL;
 
-        int x=getrequestfile(client_message,filerequested,extensionoffile);
+        int x = getrequestfile(client_message, filerequested, extensionoffile);
         puts(filerequested);
 
-        int isfileexsist=findfile(filerequested);
-        if(isfileexsist>0) {
+        char basedir[]="/home/nrv/public";
+        char fullpath[strlen(basedir)+strlen(filerequested)];
+
+        strcpy(fullpath,basedir);
+        strcpy(fullpath+strlen(fullpath),filerequested);
+
+        int isfileexsist = findfile(fullpath);
+        printf("%d",isfileexsist);
+        if (isfileexsist > 0) {
 
             if (strcmp(extensionoffile, htmlext) == 0) {//when it is html file
-                sendfiletosocket(client_sock, filerequested);
+                sendfiletosocket(cleint_sock, fullpath);
 
             }
-            else{
-                sendfiletosocket(client_sock, filerequested);
+            else {
+                writeheader(cleint_sock,isfileexsist,"image/jpeg",200);
+                sendfiletosocket(cleint_sock, fullpath);
             }
-            printf("hiiii %d",isfileexsist);
-            printf("file ext:- %s \n",extensionoffile);
+            printf("filesize is %ld\n", isfileexsist);
+            printf("file ext:- %s \n", extensionoffile);
         }
-        else{
-            writeheader(client_sock,0,NULL,404);
+        else {
+            writeheader(cleint_sock, 0, NULL, 404);
         }
 
-       // write(client_sock , "<h1>hello world</h1>" , strlen("<h1>hello world</h1>"));
+        // write(client_sock , "<h1>hello world</h1>" , strlen("<h1>hello world</h1>"));
 
-       //writeheader(client_sock,0,"text",404);
-
-
+        //writeheader(client_sock,0,"text",404);
 
 
-       // FILE *fp;
-       // fp=fopen("/home/nrv/public/index.html", "r");
-       // char ch;
+
+
+        // FILE *fp;
+        // fp=fopen("/home/nrv/public/index.html", "r");
+        // char ch;
 
 
 
@@ -78,12 +109,13 @@ int main(int argc , char *argv[])
         //ssize_t k=sendfile(fp, fp2, 0,100);
         //fclose(fp2);
         //printf("--> %d",k);
-        close(client_sock);
 
-        close(server_socket_desc);
+
 
     }
-
+        close(cleint_sock);
+    }
+    close(server_socket_desc);
     if(read_size == 0)
     {
         puts("Client disconnected");
@@ -97,14 +129,10 @@ int main(int argc , char *argv[])
     return 0;
 }
 
-int sendfiletosocket(int desc,char file[]){
+int sendfiletosocket(int desc,char fullpath[]){
     struct stat stat_buf;
     /* open the file to be sent */
-    char basedir[]="/home/nrv/public";
-    char fullpath[strlen(basedir)+strlen(file)];
 
-    strcpy(fullpath,basedir);
-    strcpy(fullpath+strlen(fullpath),file);
     printf("sendfilesocket data fullpath %s",fullpath);
     int fd = open(fullpath, O_RDONLY);
 
@@ -127,36 +155,6 @@ int phpread(){
     while (fgets(path, sizeof(path)-1, fp) != NULL) {
         printf("%s", path);
     }
-}
-
-
-int waittoconnect(struct sockaddr_in client,int *server_socket_desc){
-    int size_sockaddrin;
-    struct sockaddr_in server;
-
-    server_socket_desc=socket(AF_INET,SOCK_STREAM,0);
-    if(server_socket_desc==-1){
-        return -1;//server socket create error
-    }
-
-    server.sin_family = AF_INET;
-    server.sin_addr.s_addr = INADDR_ANY;
-    server.sin_port = htons( 8889 );
-
-    int bindval=bind(server_socket_desc,(struct sockaddr *)&server , sizeof(server));
-    if(bindval<0){
-        return -2;//bind fails
-    }
-
-    listen(server_socket_desc , 3);
-    size_sockaddrin = sizeof(struct sockaddr_in);
-    int cleint_sock=accept(server_socket_desc, (struct sockaddr *)&client, (socklen_t*)&size_sockaddrin);
-    if(cleint_sock<0){
-        return -3;//accept fails
-    }
-
-    return cleint_sock;
-
 }
 
  int getrequestfile(char header[] ,char *filerequested,char *extensionoffile){
@@ -193,14 +191,27 @@ int waittoconnect(struct sockaddr_in client,int *server_socket_desc){
 
 }
 
-int findfile(char orifname[]){
+int findfile(char fullpath[]){
     FILE *fp;
+    printf(" file got is %s ",fullpath);
+    fp = fopen (fullpath, "r");
+    if(fp==NULL){
+        return 0;
+    }
+    else{
+        fseek(fp, 0L, SEEK_END);
+        int size = ftell(fp);
+
+        return size;
+    }
+
+    /*
     char ch;
     char fname[strlen(orifname-1)];
     strcpy(fname,orifname+1);
     DIR *dp;
     struct dirent *ep;
-    dp = opendir ("/home/nrv/public/");
+    dp = opendir ("/home/nrv/public");
     if (dp != NULL) {
 
         while (ep = readdir(dp)){
@@ -208,16 +219,17 @@ int findfile(char orifname[]){
 
         if (strcmp(ep->d_name, fname) == 0) {
             (void) closedir(dp);
-            struct stat st;
-            stat(ep->d_name, &st);
-            printf("size %d",st.st_size);
-            return st.st_size;
+            fseek(fp, 0L, SEEK_END);
+            int size = ftell(fp);
+
+            return size;
         }
     }
         (void) closedir (dp);
     }
 
     return 0;
+     */
 
 }
 
