@@ -1,4 +1,4 @@
-
+#include "server.h"
 #include<stdio.h>
 #include<string.h>
 #include<sys/socket.h>
@@ -21,6 +21,8 @@ int main(int argc , char *argv[])
     struct sockaddr_in client;
     char client_message[500],filerequested[200],extensionoffile[10];
     char htmlext[]=".html";
+    char jpegext[]=".jpeg";
+    char jpgext[]=".jpg";
     int size_sockaddrin;
     struct sockaddr_in server;
 
@@ -77,11 +79,20 @@ int main(int argc , char *argv[])
         if (isfileexsist > 0) {
 
             if (strcmp(extensionoffile, htmlext) == 0) {//when it is html file
+                writeheader(cleint_sock,isfileexsist,"text/html",200);
                 sendfiletosocket(cleint_sock, fullpath);
 
             }
-            else {
+            else if((strcmp(extensionoffile, jpegext) == 0)){
                 writeheader(cleint_sock,isfileexsist,"image/jpeg",200);
+                sendfiletosocket(cleint_sock, fullpath);
+            }
+            else if((strcmp(extensionoffile, jpgext) == 0)){
+                writeheader(cleint_sock,isfileexsist,"image/jpg",200);
+                sendfiletosocket(cleint_sock, fullpath);
+            }
+            else{
+                //writeheader(cleint_sock,isfileexsist,"image/jpg",200);
                 sendfiletosocket(cleint_sock, fullpath);
             }
             printf("filesize is %ld\n", isfileexsist);
